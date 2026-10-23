@@ -187,17 +187,17 @@ export default function OwnershipCostDialog({ car, isOpen, onClose }: Props) {
                     );
                   })}
                 </div>
-
-                {/* Total */}
+                
+                {/* Total Running Costs */}
                 <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
                   <p className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
-                    Estimated Total Cost of Ownership ({form.years} yr)
+                    Estimated Total Running Costs ({form.years} yr)
                   </p>
                   <p className="text-2xl sm:text-3xl font-grotesk font-bold text-gradient-gold mt-1">
-                    {formatPKRShort(result.totalWithVehicle)}
+                    {formatPKRShort(result.runningTotal)}
                   </p>
                   <p className="text-[11px] text-muted-foreground mt-1">
-                    Includes the vehicle price · Running costs alone: {formatPKRShort(result.runningTotal)}
+                    Running costs only · Vehicle purchase price excluded.
                   </p>
                 </div>
 
