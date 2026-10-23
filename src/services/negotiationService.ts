@@ -64,7 +64,8 @@ export async function generateAgentReply(
     if (!text) throw new Error("Empty response");
     if (!replyIsSafe(text, allowed)) throw new Error("Reply quoted an unauthorised price");
     return { text, source: "ai" };
-  } catch {
+  } (error) {
+    console.error("[Negotiation Agent] AI request failed:", error);
     return { text: decision.fallbackText, source: "fallback" };
   }
 }
