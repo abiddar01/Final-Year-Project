@@ -1,0 +1,1 @@
+ALTER TABLE public.cars ADD COLUMN engine_size integer NULL;

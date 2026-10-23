@@ -1,0 +1,18 @@
+ALTER TABLE public.cars
+  ADD COLUMN IF NOT EXISTS variant text,
+  ADD COLUMN IF NOT EXISTS body_type text,
+  ADD COLUMN IF NOT EXISTS engine_type text,
+  ADD COLUMN IF NOT EXISTS torque integer,
+  ADD COLUMN IF NOT EXISTS drivetrain text,
+  ADD COLUMN IF NOT EXISTS fuel_tank_capacity numeric,
+  ADD COLUMN IF NOT EXISTS mileage_kmpl numeric,
+  ADD COLUMN IF NOT EXISTS boot_capacity integer,
+  ADD COLUMN IF NOT EXISTS length_mm integer,
+  ADD COLUMN IF NOT EXISTS width_mm integer,
+  ADD COLUMN IF NOT EXISTS height_mm integer,
+  ADD COLUMN IF NOT EXISTS wheelbase_mm integer,
+  ADD COLUMN IF NOT EXISTS ground_clearance_mm integer,
+  ADD COLUMN IF NOT EXISTS safety_features text[] NOT NULL DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS infotainment_features text[] NOT NULL DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS driver_assistance_features text[] NOT NULL DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS comfort_features text[] NOT NULL DEFAULT '{}'::text[];
