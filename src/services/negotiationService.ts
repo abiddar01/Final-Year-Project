@@ -55,14 +55,22 @@ export async function generateAgentReply(
     state.config.listedPrice,
   ].filter((n) => n > 0);
 
+  
   try {
     const { data, error } = await supabase.functions.invoke("negotiation-assistant", {
       body: { context, customerMessage, history: history.slice(-8) },
     });
+
     if (error) throw error;
+
     const text = typeof data?.reply === "string" ? data.reply.trim() : "";
+
     if (!text) throw new Error("Empty response");
-    if (!replyIsSafe(text, allowed)) throw new Error("Reply quoted an unauthorised price");
+
+    if (!replyIsSafe(text, allowed)) {
+      throw new Error("Reply quoted an unauthorised price");
+    }
+
     return { text, source: "ai" };
   } catch (error) {
     console.error("[Negotiation Agent] AI request failed:", error);
