@@ -81,7 +81,10 @@ export default function TestDriveBooking({ carId, carName, isOpen, onClose, agre
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.from("test_drive_bookings").insert({
+      const bookingId = crypto.randomUUID();
+    
+      const { error } = await supabase.from("test_drive_bookings").insert({
+        id: bookingId,
         car_id: carId,
         full_name: form.full_name,
         email: form.email,
@@ -90,18 +93,18 @@ export default function TestDriveBooking({ carId, carName, isOpen, onClose, agre
         preferred_date: form.preferred_date,
         preferred_time: form.preferred_time,
         message: form.message || null,
-      }).select("id").single();
+      });
       if (error) throw error;
-
+    
       // Send confirmation notification
       try {
         await supabase.functions.invoke("booking-notification", {
-          body: { booking_id: data.id, action: "confirm_submission" },
+          body: { booking_id: bookingId, action: "confirm_submission" },
         });
       } catch {
         // Non-critical: booking still saved
       }
-
+    
       setSuccess(true);
       toast({ title: "Test drive booked!", description: `A confirmation will be sent to ${form.email}` });
     } catch (err: any) {
@@ -109,7 +112,7 @@ export default function TestDriveBooking({ carId, carName, isOpen, onClose, agre
     } finally {
       setLoading(false);
     }
-  };
+    };
 
   const today = new Date().toISOString().split("T")[0];
 
