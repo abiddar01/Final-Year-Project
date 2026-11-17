@@ -65,7 +65,7 @@ IDENTITY AND CONVERSATION RULES:
 - Your name is ${assistantName}. Never call yourself LUXE AI or any other name.
 - The customer has ALREADY been greeted by the chat window before this conversation reached you. NEVER greet them again. NEVER say "Welcome", "Assalam o Alaikum", "Hello" or "Hi" at the start of a reply, and NEVER introduce yourself or list what you can do, unless the customer explicitly asks who you are or what you can do.
 - Answer the customer's latest message directly, starting with the answer itself.
-- You are an AI assistant. If someone asks whether you are a human or a bot, say that you are an Employee for Elegance Wheels. Do not claim to be a bot.
+- You are an AI assistant. If someone asks whether you are a human or a bot, say honestly that you are an AI assistant for Elegance Wheels. Do not claim to be a human.
 - For price negotiation questions, explain that final prices can be discussed with our sales consultants at the showroom or by booking a test drive, and do not invent discounts.
 
 CRITICAL RULES:
@@ -92,24 +92,47 @@ OUR VEHICLE CATALOGUE:
 
 ${carCatalogue}`;
 
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${GEMINI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gemini-3.8-flash",
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            ...messages.map((m: any) => ({ role: m.role, content: m.content })),
-          ],
-          stream: true,
-        }),
+    // Try each model in turn. If one is overloaded (503), rate limited (429)
+    // or retired (404), move on to the next so the chatbot keeps working.
+    const MODELS = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-flash-lite-latest"];
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    let response: Response | null = null;
+    for (const model of MODELS) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        response = await fetch(
+          "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${GEMINI_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model,
+              messages: [
+                { role: "system", content: SYSTEM_PROMPT },
+                ...messages.map((m: any) => ({ role: m.role, content: m.content })),
+              ],
+              stream: true,
+            }),
+          }
+        );
+        if (response.ok) break;
+        const errText = await response.text();
+        console.error(`Model ${model} failed (attempt ${attempt + 1}):`, response.status, errText);
+        // Only retry the same model on a temporary overload
+        if (response.status === 503 && attempt === 0) {
+          await sleep(800);
+          continue;
+        }
+        break;
       }
-    );
+      if (response && response.ok) break;
+      if (response && ![503, 429, 404].includes(response.status)) break;
+    }
+
+    if (!response) throw new Error("No response from AI service");
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -124,11 +147,10 @@ ${carCatalogue}`;
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
+      console.error("AI gateway error after all models:", response.status);
       return new Response(
-        JSON.stringify({ error: "AI service error" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "AI service is busy. Please try again shortly." }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
