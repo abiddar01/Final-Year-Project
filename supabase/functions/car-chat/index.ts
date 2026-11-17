@@ -7,6 +7,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+let catalogueCache: { at: number; data: any[] } | null = null;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -23,10 +25,18 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { data: cars, error } = await supabase.from("cars").select("*");
-    if (error) {
-      console.error("Failed to fetch cars:", error);
-      throw new Error("Could not load catalogue");
+    // Cache the catalogue for 60s so we don't hit the database on every message
+    let cars = catalogueCache && Date.now() - catalogueCache.at < 60_000 ? catalogueCache.data : null;
+    if (!cars) {
+      const { data, error } = await supabase
+        .from("cars")
+        .select("name,brand,model,year,price,category,fuel_type,transmission,horsepower,top_speed,acceleration,seats,availability_type,is_featured,description,features");
+      if (error) {
+        console.error("Failed to fetch cars:", error);
+        throw new Error("Could not load catalogue");
+      }
+      cars = data || [];
+      catalogueCache = { at: Date.now(), data: cars };
     }
 
     // Build catalogue knowledge
@@ -92,14 +102,12 @@ OUR VEHICLE CATALOGUE:
 
 ${carCatalogue}`;
 
-    // Try each model in turn. If one is overloaded (503), rate limited (429)
-    // or retired (404), move on to the next so the chatbot keeps working.
-    const MODELS = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-flash-lite-latest"];
-    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    // Fast model first. If it fails, is overloaded, or takes too long, try the next one.
+    const MODELS = ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-flash-lite-latest"];
 
     let response: Response | null = null;
     for (const model of MODELS) {
-      for (let attempt = 0; attempt < 2; attempt++) {
+      try {
         response = await fetch(
           "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
           {
@@ -116,20 +124,18 @@ ${carCatalogue}`;
               ],
               stream: true,
             }),
+            signal: AbortSignal.timeout(7000), // give up on this model after 7s
           }
         );
-        if (response.ok) break;
-        const errText = await response.text();
-        console.error(`Model ${model} failed (attempt ${attempt + 1}):`, response.status, errText);
-        // Only retry the same model on a temporary overload
-        if (response.status === 503 && attempt === 0) {
-          await sleep(800);
-          continue;
-        }
-        break;
+      } catch (err) {
+        console.error(`Model ${model} timed out or failed:`, err);
+        response = null;
+        continue;
       }
-      if (response && response.ok) break;
-      if (response && ![503, 429, 404].includes(response.status)) break;
+      if (response.ok) break;
+      const errText = await response.text();
+      console.error(`Model ${model} failed:`, response.status, errText);
+      if (![503, 429, 404].includes(response.status)) break;
     }
 
     if (!response) throw new Error("No response from AI service");
