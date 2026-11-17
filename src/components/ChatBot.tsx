@@ -89,6 +89,7 @@ export default function ChatBot() {
         },
         body: JSON.stringify({
           messages: allMessages.map(m => ({ role: m.role, content: m.content })),
+          botName,
         }),
       });
 
